@@ -1,0 +1,65 @@
+version: '2'
+
+volumes:
+  postgres_data:
+    driver: local
+
+services:
+  db:
+    image: postgres
+    ports:
+    - 8432:5432
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: benjaminvegadelpino
+      POSTGRES_USER: benjaminvegadelpino
+      POSTGRES_DB: crm
+
+  mongodb:
+    image: mongo:latest
+    container_name: "mongobd"
+    environment:
+      - MONGO_DATA_DIR=/data/db
+      - MONGO_LOG_DIR=/dev/null
+    ports:
+      - 27017:27017
+    command: mongod --smallfiles --logpath=/dev/null
+
+  postgres_keycloak:
+    image: postgres
+    ports:
+    - 9432:5432
+    volumes:
+      - postgres_data:/var/lib/postgresql/data:z
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: password
+  redis:
+    image: redis
+    command: redis-server /usr/local/etc/redis/redis.conf
+    volumes:
+    - ./redis.conf:/usr/local/etc/redis/redis.conf
+    ports:
+    - 6379:6379
+
+  sso:
+    image: jboss/keycloak
+    environment:
+      DB_VENDOR: POSTGRES
+      DB_ADDR: postgres_keycloak
+      DB_DATABASE: keycloak
+      DB_USER: keycloak
+      DB_SCHEMA: public
+      DB_PASSWORD: password
+      KEYCLOAK_USER: admin
+      KEYCLOAK_PASSWORD: admin
+    command:
+      - "-Dkeycloak.migration.action=import -Dkeycloak.migration.provider=singleFile -Dkeycloak.migration.file=/opt/jboss/keycloak/realm-users.json -Dkeycloak.migration.strategy=OVERWRITE_EXISTING"
+    ports:
+      - 8180:8080
+    volumes:
+      - ./realm-users.json:/opt/jboss/keycloak/realm-users.json
+    depends_on:
+      - postgres_keycloak
+
